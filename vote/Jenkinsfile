@@ -10,7 +10,10 @@ pipeline {
             }
             agent any
             steps {
-                docker.build("mrscrb/vote:v${env.BUILD_ID}", "./vote")
+                echo 'Building vote app'
+                script{
+                    docker.build("mrscrb/vote:v${env.BUILD_ID}", "./vote")
+                }
             }
         }
         // TODO run the apps tests
@@ -20,7 +23,7 @@ pipeline {
             }
             agent any
             steps {
-                echo '[Placeholder] Running tests'
+                echo 'Testsing vote app'
             }
         }
         stage('docker-package'){
@@ -30,7 +33,7 @@ pipeline {
                 changeset '**/vote/**'
             }
             steps{
-                echo 'Pushing dockerized vote app to registry'
+                echo 'Pushing vote app image to docker registry'
                 script{
                     docker.withRegistry('https://index.docker.io/v1/','dockerhub-rw') {
                         def voteImage = docker.image("mrscrb/vote:v${env.BUILD_ID}")
