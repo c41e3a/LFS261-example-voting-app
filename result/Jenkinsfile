@@ -1,27 +1,38 @@
 pipeline {
-    agent none
+    agent any
+
+    environment {
+        PIPELINE_NAME = 'result'
+        DOCKER_REGISTRY = 'https://registry.hub.docker.com'
+        DOCKER_USER = 'mrscrb'
+        DOCKER_REPO = PIPELINE_NAME
+        DOCKER_IMAGE = "${DOCKER_USER}/${DOCKER_REPO}:v${env.BUILD_ID}"
+        TARGET_CHANGESET = '**/result/**'
+        TARGET_PATH = "./${PIPELINE_NAME}"
+        SLACK_CHANNEL = '#lfs261'
+    }
 
     stages {
         // build the docker image
         stage('build') {
-            when{
-                changeset '**/result/**'
+            when {
+                changeset "${TARGET_CHANGESET}"
             }
             agent any
             steps {
                 echo 'Building result app'
-                script{
-                    docker.build("mrscrb/result:v${env.BUILD_ID}", "./result")
+                script {
+                    docker.build("${DOCKER_IMAGE}", "${TARGET_PATH}")
                 }
             }
         }
         stage('test') {
-            when{
-                changeset '**/result/**'
+            when {
+                changeset "${TARGET_CHANGESET}"
             }
-            agent{
+            agent {
                 docker {
-                    image 'mrscrb/result:v${env.BUILD_ID}'
+                    image "${DOCKER_IMAGE}" // use the image built in the previous stage
                     args 'sh'
                 }
             }
@@ -33,17 +44,18 @@ pipeline {
             }
         }
         stage('publish') {
-            when{
-                changeset '**/result/**'
+            when {
+                changeset "${TARGET_CHANGESET}"
                 branch 'master'
             }
             agent any
             steps {
                 echo 'Publishing result app'
-                script{
-                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
-                        dockerImage.push("mrscrb/result:v${env.BUILD_ID}")
-                        dockerImage.push("latest")
+                script {
+                    docker.withRegistry("${DOCKER_REGISTRY}", 'dockerhub') {
+                        dockerImage = docker.build("${DOCKER_IMAGE}", "${TARGET_PATH}")
+                        dockerImage.push("${DOCKER_USER}/${DOCKER_REPO}:v${env.BUILD_ID}")
+                        dockerImage.push('latest')
                     }
                 }
             }
@@ -51,10 +63,10 @@ pipeline {
     }
     post {
         success {
-            slackSend (channel: "#lfs261", message: "Build Success: ${env.JOB_NAME} ${env.BUILD_NUMBER}")
+            slackSend(channel: "${SLACK_CHANNEL}", message: "Build Success: ${env.JOB_NAME} ${env.BUILD_NUMBER}")
         }
         failure {
-            slackSend (channel: "#lfs261", message: "Build Failed: ${env.JOB_NAME} ${env.BUILD_NUMBER}")
+            slackSend(channel: "${SLACK_CHANNEL}", message: "Build Failed: ${env.JOB_NAME} ${env.BUILD_NUMBER}")
         }
     }
 }
