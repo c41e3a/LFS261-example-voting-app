@@ -1,19 +1,17 @@
 pipeline {
-    agent any
-
-    tools {
-        nodejs 'NodeJS 19.0.1'
-    }
+    agent none
 
     stages {
+        // build the docker image
         stage('build') {
             when{
                 changeset '**/result/**'
             }
+            agent any
             steps {
                 echo 'Building result app'
-                dir('result') {
-                    sh 'npm install'
+                script{
+                    docker.build("mrscrb/result:v${env.BUILD_ID}", "./result")
                 }
             }
         }
@@ -21,10 +19,15 @@ pipeline {
             when{
                 changeset '**/result/**'
             }
+            agent{
+                docker {
+                    image 'mrscrb/result:v${env.BUILD_ID}'
+                    args 'sh'
+                }
+            }
             steps {
                 echo 'Running Unit Tests on result app'
                 dir('result') {
-                    sh 'npm install'
                     sh 'npm test'
                 }
             }
