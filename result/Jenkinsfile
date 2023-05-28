@@ -32,6 +32,22 @@ pipeline {
                 }
             }
         }
+        stage('publish') {
+            when{
+                changeset '**/result/**'
+                branch 'master'
+            }
+            agent any
+            steps {
+                echo 'Publishing result app'
+                script{
+                    docker.withRegistry('https://registry.hub.docker.com', 'dockerhub') {
+                        dockerImage.push("mrscrb/result:v${env.BUILD_ID}")
+                        dockerImage.push("latest")
+                    }
+                }
+            }
+        }
     }
     post {
         success {
