@@ -2,73 +2,93 @@ pipeline {
 
     agent none
 
+    environment {
+        APP_NAME = 'worker'
+        GIT_BRANCH_MAIN = 'master'
+        DOCKER_REGISTRY = 'https://index.docker.io/v1/'
+        DOCKER_USER = 'mrscrb'
+        PIPELINE_NAME = "${APP_NAME}"
+        TARGET_CHANGESET = "**/${APP_NAME}/**"
+        TARGET_PATH = "${APP_NAME}"
+        DOCKER_REPO = "${APP_NAME}"
+        DOCKER_IMAGE = "${DOCKER_USER}/${DOCKER_REPO}:v${env.BUILD_ID}"
+        AGENT_IMAGE = 'maven:3.8.5-jdk-11-slim'
+        SLACK_CHANNEL = '#lfs261'
+    }
+
     stages {
-        stage('build') {
-            when{
-                changeset '**/worker/**'
-            }
-            agent{
-                docker{
-                    image 'maven:3.6.1-jdk-8-slim'
+        stage('worker-build') {
+            agent {
+                docker {
+                    image "${AGENT_IMAGE}"
                     args '-v $HOME/.m2:/root/.m2'
                 }
             }
+            when {
+                changeset "${TARGET_CHANGESET}"
+            }
             steps {
-                echo 'Compiling worker app'
-                dir('worker') {
+                // compile the worker app
+                echo "Compiling ${APP_NAME} app.."
+                dir(path: "${TARGET_PATH}") {
                     sh 'mvn compile'
                 }
             }
         }
-        stage('test') {
-            when{
-                changeset '**/worker/**'
-            }
-            agent{
-                docker{
-                    image 'maven:3.6.1-jdk-8-slim'
+
+        stage('worker test') {
+            agent {
+                docker {
+                    image "${AGENT_IMAGE}"
                     args '-v $HOME/.m2:/root/.m2'
                 }
             }
+            when {
+                changeset "${TARGET_CHANGESET}"
+            }
             steps {
-                echo 'Running Unit Tests on worker app'
-                dir('worker') {
+                // run unit tests on worker app
+                echo "Running Unit Tets on ${APP_NAME} app."
+                dir(path: "${APP_NAME}") {
                     sh 'mvn clean test'
                 }
             }
         }
-        stage('package') {
-            when{
-                branch 'master'
-                changeset '**/worker/**'
-            }
-            agent{
-                docker{
-                    image 'maven:3.6.1-jdk-8-slim'
+
+        stage('worker-package') {
+            agent {
+                docker {
+                    image "${AGENT_IMAGE}"
                     args '-v $HOME/.m2:/root/.m2'
                 }
             }
+            when {
+                branch "${GIT_BRANCH_MAIN}" // only package on master branch
+                changeset "${TARGET_CHANGESET}"
+            }
             steps {
-                echo 'Packaging worker app'
-                dir('worker') {
+                echo "Packaging ${APP_NAME} app"
+                dir(path: "${APP_NAME}") {
                     sh 'mvn package -DskipTests'
-                    archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
+                    archiveArtifacts(artifacts: '**/target/*.jar', fingerprint: true)
                 }
             }
         }
-        stage('docker-package'){
+
+        stage('worker-docker-package') {
             agent any
-            when{
-                branch 'master'
-                changeset '**/worker/**'
+            when {
+                changeset "${TARGET_CHANGESET}"
+                branch "${GIT_BRANCH_MAIN}"
             }
-            steps{
-                echo 'Packaging worker app with docker'
-                script{
-                    docker.withRegistry('https://index.docker.io/v1/','dockerhub-rw') {
-                        def workerImage=docker.build("mrscrb/worker:v${env.BUILD_ID}", "./worker")
+            steps {
+                echo "Packaging ${APP_NAME} app with docker"
+                script {
+                    docker.withRegistry("${DOCKER_REGISTRY}", 'dockerhub-rw') {
+                        def workerImage = docker.build("${DOCKER_IMAGE}", "./${APP_NAME}")
                         workerImage.push()
-                        workerImage.push("latest")
+                        workerImage.push("${env.BRANCH_NAME}")
+                        workerImage.push('latest')
                     }
                 }
             }
