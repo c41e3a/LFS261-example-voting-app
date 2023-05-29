@@ -250,5 +250,11 @@ pipeline {
         always {
             echo 'Building mono pipeline for voting app is completed.'
         }
+        success {
+            slackSend(channel: "${SLACK_CHANNEL}", message: "Build Success: ${env.JOB_NAME} ${env.BUILD_NUMBER}", iconEmoji: 'white_check_mark')
+        }
+        failure {
+            slackSend(channel: "${SLACK_CHANNEL}", message: "Build Failed: ${env.JOB_NAME} ${env.BUILD_NUMBER}", iconEmoji: 'x')
+        }
     }
 }
